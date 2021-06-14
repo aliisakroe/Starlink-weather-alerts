@@ -37,20 +37,20 @@ FLUENT PYTHON
 - a oop uml diagram
 '''
 
-from Starlink import Constellation
-from NOAA_SolarWind import Magnetosphere, Plasma
+from Starlink import Constellation, get_logger
+from NOAA import SpaceWeather
+import asyncio
 
-
-
-
+async def main():
+    constellation = Constellation()
+    weather = SpaceWeather()
+    await asyncio.gather(constellation.build(), weather.fetch_plasma(), weather.fetch_magnetosphere())
 
 if __name__ == '__main__':
-    #todo for file in dir, or api to go out and call it good place for a generator
-    #todo run for single file
+    #todo real time fetching and print updates to console
 
-    constellation = Constellation()
-
-
-
-
+    logger = get_logger('Main')
+    logger.info('Starting event loop')
+    asyncio.run(main())
+    logger.info('Closing event loop')
 

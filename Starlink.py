@@ -8,26 +8,37 @@ TLE
 
 The TLE class parses each file into Satelite objects'''
 
-import os
 import re
 import requests
 from itertools import zip_longest
+# from main import get_logger
+import logging
 
-class TLE_data():
+def get_logger(name):
+    logger = logging.getLogger(name)
+    handler = logging.FileHandler('alert.log', 'a+')
+    f = logging.Formatter('%(asctime)s - %(levelname)-10s - %(filename)s - %(funcName)s - %(message)s')
+    handler.setFormatter(f)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    return logger
+
+class TLEData():
 
     num_satellites = 0
     raw_data = None
 
     def __init__(self):
+        self.logger = get_logger('Starlink.TLE_data')
         self.raw_data = self.fetch()
         self.satellite_array = self.parse_data(self.raw_data)
 
     def fetch(self, url='https://celestrak.com/NORAD/elements/starlink.txt'): #url='https://celestrak.com/NORAD/elements/starlink.txt'):
-        print("Fetching TLE data")
+        self.logger.info("Fetching TLE Satellite data from Celestrak")
         try:
             tles = requests.get(url)
             assert tles.status_code == 200
-            print("Fetch successful")
+            self.logger.info('TLE fetch successful')
         except Exception:  #todo
             raise Exception
         return self._parse_data(tles.text)  # todo check if return before or after except statement
@@ -48,12 +59,10 @@ class TLE_data():
                 return Satellite(name, t1, t2)
 
     def _grouper(self, n, iterable, fillvalue=None):
-        "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
         args = [iter(iterable)] * n
         return zip_longest(fillvalue=fillvalue, *args)
 
     def _parse_data(self, data):
-        print("Parsing data")
         lines = data.split('\n')
 
         satellite_array = []
@@ -64,8 +73,6 @@ class TLE_data():
         self.num_satellites = len(satellite_array)
         return satellite_array
 
-    def get_num_satellites(self):
-        return self.num_satellites
 
 class Satellite():  # todo refactor to the real starlink name
     name = None
@@ -88,6 +95,9 @@ class Satellite():  # todo refactor to the real starlink name
     revolutions = None
 
     def __init__(self, _name, _line1, _line2):
+        self.logger = get_logger('Starlink.Satellite')
+        if _name == None:
+            return
         self.name = _name
         self._parse_line1(_line1)
         self._parse_line2(_line2)
@@ -117,11 +127,33 @@ class Satellite():  # todo refactor to the real starlink name
         self.mean_motion = m.group(6)
         self.revolutions = m.group(7) #todo
 
+    def signal_thrusters(self):
+        #todo to avoid orbital decay
+        pass
 
-class Constellation(TLE_data):
+
+class Constellation(TLEData):
     #todo generator of number of sattelites to grab
     def __init__(self):
+        self.logger = get_logger('Starlink.Constellation')
+        self.logger.info('Initializing constellation')
+
+    async def build(self):
         self.satellite_array = self.fetch()
-        print(self.num_satellites)
+        self.logger.info(f'Constellation assembled, {self.num_satellites} total satellites')
+
+
+    def _get_vulnerable_satellites(self):
+        #todo get all between sun and solar storm
+
+        return [Satellite(None, None, None)]
+
+    def send_alert(self):
+        #todo
+        sat_array = self._get_vulnerable_satellites()
+        for sat in sat_array:
+            sat.signal_thrusters()
+        print(f'{len(sat_array)} satellites have been alerted to ready their thrusters')
+
 
 
