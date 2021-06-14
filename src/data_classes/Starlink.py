@@ -8,47 +8,22 @@ TLE
 
 The TLE class parses each file into Satelite objects'''
 
+#todo update so log beginning of a storm and not every storm event (time series would be better for this data)
+
 import re
-import requests
 from itertools import zip_longest
-import logging
+from utils.logging import get_logger, log_error
+from data_classes.base_classes.api import API
 
-def get_logger(name):
-    logger = logging.getLogger(name)
-    handler = logging.FileHandler('alert.log', 'a+')
-    f = logging.Formatter('%(asctime)s - %(levelname)-10s - %(filename)s - %(funcName)s - %(message)s')
-    handler.setFormatter(f)
-    logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
-    return logger
+STARLINK_URL='https://celestrak.com/NORAD/elements/starlink.txt'
 
-class TLEData():
+class TLEData(API):
 
     num_satellites = 0
     raw_data = None
 
     def __init__(self):
         self.logger = get_logger('Starlink.TLE_data')
-        # self.raw_data = self.fetch()
-        # self.satellite_array = self._parse_data(self.raw_data)
-
-
-    def fetch(self, url='https://celestrak.com/NORAD/elements/starlink.txt'): #url='https://celestrak.com/NORAD/elements/starlink.txt'):
-        self.logger.info("Fetching TLE Satellite data from Celestrak")
-        try:
-            r = requests.get(url)
-        except requests.exceptions.HTTPError as errh:
-            print(errh)
-        except requests.exceptions.ConnectionError as errc:
-            print(errc)
-        except requests.exceptions.Timeout as errt:
-            print(errt)
-        except requests.exceptions.RequestException as err:
-            print(err)
-
-        assert r.status_code == 200
-        self.logger.info("TLE fetch successful")
-        return self._parse_data(r.text)
 
     def _parse_name(self, str):
         '''Confirm TLE is in proper format, line 1'''
@@ -69,8 +44,8 @@ class TLEData():
         args = [iter(iterable)] * n
         return zip_longest(fillvalue=fillvalue, *args)
 
-    def _parse_data(self, data):
-        lines = data.split('\n')
+    def _parse(self, data):
+        lines = data.text.split('\n')
 
         satellite_array = []
         for group in self._grouper(3, lines):
@@ -122,7 +97,6 @@ class Satellite():  # todo refactor to the real starlink name
         self.mean_motion = m.group(8)
         self.radiation_drag_coefficient = m.group(0) #todo
 
-
     def _parse_line2(self, str):
         m = re.match(r'\d (\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)', str)
         assert m != None, str
@@ -150,8 +124,8 @@ class Constellation():
         subscribe.magnetosphere.subscribe(self.broadcast_alert)
 
     def build(self):
-        tle =  TLEData()
-        self.satellite_array = tle.fetch()
+        tle = TLEData()
+        self.satellite_array = tle.fetch(STARLINK_URL)
         self.num_satellites = len(self.satellite_array)
         self.logger.info(f'Constellation assembled, {self.num_satellites} total satellites')
 

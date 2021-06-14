@@ -1,6 +1,3 @@
-'''
-'''
-
 '''Goals are to use:
 FLUENT PYTHON
 - a decorator
@@ -14,9 +11,11 @@ FLUENT PYTHON
 - a oop uml diagram
 '''
 
-from Starlink import Constellation, get_logger
-from NOAA import SpaceWeather
 import asyncio
+from data_classes.Starlink import Constellation
+from data_classes.NOAA import SpaceWeather
+from utils.logging import get_logger
+
 
 async def fetch_constellation():
     await constellation.build()
@@ -26,15 +25,11 @@ async def fetch_data_loop(weather):
         await asyncio.gather(
             weather.fetch_magnetosphere(),
             weather.fetch_plasma(),
-            asyncio.sleep(3)
+            weather.run_weather(),
+            asyncio.sleep(90)
         )
-        weather.run_weather(),
-        print('loop')
-
 
 if __name__ == '__main__':
-    #todo real time fetching and print updates to console
-
     logger = get_logger('Main')
 
     weather = SpaceWeather()

@@ -1,8 +1,14 @@
 '''This uses real-time apis from NOAA...'''
 
-import requests
-import sqlite3 as sl
-from Starlink import get_logger
+from utils.logging import get_logger
+from data_classes.base_classes.database import Database
+from data_classes.base_classes.api import API
+
+MAGNETOSPHERE_URL='https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json'
+PLASMA_URL='https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json'
+
+def _get_hourly(timestamp):
+    return timestamp[:-10]
 
 class Storm():
 
@@ -25,17 +31,15 @@ class Observable(object):
         for fn in self.callbacks:
             fn(e)
 
-class StormDB():
-    def __init__(self):
-        self.logger = get_logger("NOAA.StormDB")
-        self.open_connection()
+class StormDB(Database):
 
-    def open_connection(self):
-        self.con = sl.connect('NOAA.db')
-        with self.con:
-            self.con.execute("""
-                               CREATE TABLE IF NOT EXISTS STORMS (
-                                    time_tag substring UNIQUE, 
+    logger = get_logger('NOAA.StormDB')
+
+    def create_table(self):
+        with self.con as con:
+            con.execute(f"""
+                               CREATE TABLE IF NOT EXISTS {self.name} (
+                                time_tag TEXT PRIMARY KEY, 
                                    bx_gsm float, 
                                    by_gsm float, 
                                    bz_gsm float, 
@@ -45,48 +49,26 @@ class StormDB():
                                );
                            """)
 
-    def __aenter__(self):
-        return self.con.cursor()
+        self.logger.info('StormDB table created')
 
-    def store_data(self, storm):
-        sql = 'INSERT OR IGNORE INTO STORMS (time_tag, bx_gsm, by_gsm, bz_gsm, lon_gsm, lat_gsm, bt) values(?, ?, ?, ?, ?, ?, ?);'
+    def write_many_rows(self, storm):
+        # assert storm == (str, float, float, float, float, float, float)
+        sql = f'INSERT OR IGNORE INTO {self.name} (time_tag, bx_gsm, by_gsm, bz_gsm, lon_gsm, lat_gsm, bt) values(?, ?, ?, ?, ?, ?, ?);'
         with self.con as con:
-            con.execute(sql, storm)
+            con.execute(sql, storm).fetchmany()
 
-    def __aexit__(self, exc_type, exc, tb):
-        with self.con:
-            self.con.close()
-
-class MagnetosphereData(Observable):
+class MagnetosphereData(API, Observable):
 
     def __init__(self):
         self.callbacks = []
         self.logger = get_logger('NOAA.Magnetosphere')
         # self.fetch()
-        self.db = StormDB()
+        self.db = StormDB(db='NOAA', table='STORMS')
 
-    def update_data(self, url='https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json'):
-        self.logger.info('Fetching Magnetosphere data from NOAA')
-        try:
-            r = requests.get(url)
-
-        except requests.exceptions.HTTPError as errh:
-            self.logger.error(errh)
-        except requests.exceptions.ConnectionError as errc:
-            self.logger.error(errc)
-        except requests.exceptions.Timeout as errt:
-            self.logger.error(errt)
-        except requests.exceptions.RequestException as err:
-            self.logger.error(err)
-
-        assert r.status_code == 200
-        self.logger.info("Magnetosphere fetch successful")
-
-        return self._parse(r.json())
-
-    def _parse(self, data): #todo do I need tos parse it all?
-        for l in reversed(data): #get most recent first
-            time_tag = l[0]
+    def _parse(self, data):
+        count = 0
+        for i, l in enumerate(list(data.json())[1:]):
+            time_tag = _get_hourly(l[0])
             bx_gsm = l[1]
             by_gsm = l[2]
             bz_gsm = l[3]
@@ -94,96 +76,71 @@ class MagnetosphereData(Observable):
             lat_gsm = l[5]
             bt = l[6]
             if bz_gsm != 'bz_gsm' and float(bz_gsm) < 0:
-                self.db.store_data((time_tag, bx_gsm, by_gsm, bz_gsm, lon_gsm, lat_gsm, bt))
+                count+=1
+                self.db.write_many_rows((time_tag, bx_gsm, by_gsm, bz_gsm, lon_gsm, lat_gsm, bt))
+
+        self.logger.info(f'wrote {self.db.get_num_rows()} unique timestamp / {count} rows to {self.db.name}')
+
+
 
     def check_for_storms(self):
-        self.logger.info('Checking for storms')
 
-        with self.db.con as con:
-            storms = con.execute("SELECT * FROM STORMS;").fetchall()
-            # print(storms)
-
-        self.logger.warn(f'Magnetic STORM Alert')
-
+        storms = self.db.execute(f"SELECT * FROM {self.db.name};")
+        self.logger.info(f'retrieved {len(storms)} storms from the database')
         for storm in storms:
             (time_tag, bx_gsm, by_gsm, bz_gsm, lon_gsm, lat_gsm, bt) = storm
             self.fire(time_tag=time_tag, bx_gsm=bx_gsm, by_gsm=by_gsm, bz_gsm=bz_gsm, lon_gsm=lon_gsm, lat_gsm=lat_gsm, bt=bt)
 
 
+class PlasmaDB(Database):
 
-class PlasmaDB():
-    def __aenter__(self):
-        return self.con
+    logger = get_logger('NOAA.PlasmaDB')
 
-    def __init__(self):
-        self.logger = get_logger('NOAA.PlasmaDB')
-        self.open_connection()
-
-    def open_connection(self):
-        self.con = sl.connect('NOAA.db')
+    def create_table(self):
         with self.con:
-            self.con.execute("""
-                                  CREATE TABLE IF NOT EXISTS DRAG (
-                                      time_tag substring UNIQUE,
+            self.con.execute(f"""
+                                  CREATE TABLE IF NOT EXISTS {self.name} (
+                                      time_tag TEXT UNIQUE,
                                       density FLOAT,
                                       speed FLOAT,
                                       temperature INTEGER 
                                   );
                               """)
-            self.con.execute('delete from drag').fetchone() #todo hacky
-            print(self.con.execute('select count(*) from drag').fetchone())
 
-    def store_data(self, data):
+        self.logger.info('PlasmaDB table created')
+
+    def write_many_rows(self, data):
+        # assert data == (str, float, float, int)
         self.logger.info('Writing Drag to database for storm lookups')
-        all_data = [tuple(l) for l in data]
-        sql = 'INSERT INTO DRAG (time_tag, density, speed, temperature) values(?, ?, ?, ?)'
+        sql = f'INSERT OR IGNORE INTO {self.name} (time_tag, density, speed, temperature) values(?, ?, ?, ?)'
         with self.con:
-            self.con.executemany(sql, all_data)
-
-    def __aexit__(self, exc_type, exc, tb):
-        if exc_type == KeyboardInterrupt:
-            with self.con:
-                self.con.execute("DELETE FROM DRAG;")
-                print(self.con.execute('select count(*) from drag;'))
-                self.con.close()
+            self.con.executemany(sql, data)
+        self.logger.info('Storm lookups written successfully')
 
 
-class Plasma():
+class Plasma(API):
 
     def __init__(self, magnetosphere):
         self.logger = get_logger('NOAA.Plasma')
-        self.db = PlasmaDB()
+        self.db = PlasmaDB(db='NOAA', table='INTENSITY')
         magnetosphere.subscribe(self.get_radiation_drag)
 
-    def update_data(self, url='https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json'):
-        self.logger.info('Fetching Plasma data from NOAA')
-        try:
-            r = requests.get(url)
-        except requests.exceptions.HTTPError as errh:
-            self.logger.error(errh)
-        except requests.exceptions.ConnectionError as errc:
-            self.logger.error(errc)
-        except requests.exceptions.Timeout as errt:
-            self.logger.error(errt)
-        except requests.exceptions.RequestException as err:
-            self.logger.error(err)
+    def _parse(self, data):
+        text = data.json()[1:]
+        data1 = [[_get_hourly(l[0])] + l[1:] for l in text]
+        data = [tuple(l) for l in data1]
 
-        assert r.status_code == 200
-        self.logger.info("Plasma fetch successful")
+        self.db.write_many_rows(data)
 
-        text = r.json()
-
-        self.db.store_data(text)
-
+        self.logger.info(f'wrote {self.db.get_num_rows()} unique timestamp / {len(data)} rows to {self.db.name}')
 
     def get_radiation_drag(self, e):
         #todo get the right drag for the time
-        storm_time = e.time_tag[1]
-        with self.db.con as con:
-            data = con.execute(f"SELECT * FROM DRAG WHERE time_tag = '{storm_time}'").fetchall()
-            # print(data)
-            for row in data:
-                self.logger.warn(f'At {row[0]} there has been a {row[1]} density {row[2]} speed and {row[3]} temperature storm')
+        hourly_storm_time = e.time_tag[1]
+        rows = self.db.execute(f'SELECT * FROM {self.db.name} WHERE time_tag = "{hourly_storm_time}"')
+
+        for row in rows:
+            self.logger.warn(f'At {row[0]} there has been a {row[1]} density {row[2]} speed and {row[3]} temperature storm')
 
 class SpaceWeather():
 
@@ -195,12 +152,22 @@ class SpaceWeather():
         self.plasma = Plasma(self.magnetosphere)
 
     async def fetch_plasma(self):
-        self.plasma.update_data()
+        self.logger.info("Kicking off plasma"),
+        try:
+            self.plasma.fetch(PLASMA_URL)
+        except Exception as err:
+            err
 
     async def fetch_magnetosphere(self):
-        self.magnetosphere.update_data()
+        self.logger.info("Kicking off magnetosphere"),
+        try:
+            self.magnetosphere.fetch(MAGNETOSPHERE_URL)
+        except Exception as err:
+            err
 
-    def run_weather(self):
+
+    async def run_weather(self):
+        self.logger.info("Checking space weather for storms")
         self.magnetosphere.check_for_storms()
 
 
