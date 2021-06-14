@@ -28,3 +28,4 @@ Known improvements --
 
 -- Don't duplicate data in sqlite
 -- have plasma writes before magnetosphere writes
+
