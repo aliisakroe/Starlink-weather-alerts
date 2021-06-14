@@ -26,8 +26,11 @@ async def fetch_data_loop(weather):
         await asyncio.gather(
             weather.fetch_magnetosphere(),
             weather.fetch_plasma(),
-            asyncio.sleep(60)
+            asyncio.sleep(3)
         )
+        weather.run_weather(),
+        print('loop')
+
 
 if __name__ == '__main__':
     #todo real time fetching and print updates to console
@@ -37,14 +40,13 @@ if __name__ == '__main__':
     weather = SpaceWeather()
     constellation = Constellation(subscribe=weather)
     constellation.build()
-    # asyncio.run(fetch_constellation())
 
     logger.info('Starting event loop')
     loop = asyncio.get_event_loop()
     try:
         asyncio.ensure_future(fetch_data_loop(weather))
         loop.run_forever()
-    finally:
+    except KeyboardInterrupt:
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
 
