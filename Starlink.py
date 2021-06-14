@@ -11,7 +11,6 @@ The TLE class parses each file into Satelite objects'''
 import re
 import requests
 from itertools import zip_longest
-# from main import get_logger
 import logging
 
 def get_logger(name):
@@ -30,18 +29,26 @@ class TLEData():
 
     def __init__(self):
         self.logger = get_logger('Starlink.TLE_data')
-        self.raw_data = self.fetch()
-        self.satellite_array = self.parse_data(self.raw_data)
+        # self.raw_data = self.fetch()
+        # self.satellite_array = self._parse_data(self.raw_data)
+
 
     def fetch(self, url='https://celestrak.com/NORAD/elements/starlink.txt'): #url='https://celestrak.com/NORAD/elements/starlink.txt'):
         self.logger.info("Fetching TLE Satellite data from Celestrak")
         try:
-            tles = requests.get(url)
-            assert tles.status_code == 200
-            self.logger.info('TLE fetch successful')
-        except Exception:  #todo
-            raise Exception
-        return self._parse_data(tles.text)  # todo check if return before or after except statement
+            r = requests.get(url)
+        except requests.exceptions.HTTPError as errh:
+            print(errh)
+        except requests.exceptions.ConnectionError as errc:
+            print(errc)
+        except requests.exceptions.Timeout as errt:
+            print(errt)
+        except requests.exceptions.RequestException as err:
+            print(err)
+
+        assert r.status_code == 200
+        self.logger.info("TLE fetch successful")
+        return self._parse_data(r.text)
 
     def _parse_name(self, str):
         '''Confirm TLE is in proper format, line 1'''
@@ -132,28 +139,32 @@ class Satellite():  # todo refactor to the real starlink name
         pass
 
 
-class Constellation(TLEData):
+class Constellation():
+    satellite_array = []
+    num_satellites = len(satellite_array)
+
     #todo generator of number of sattelites to grab
-    def __init__(self):
+    def __init__(self, subscribe=None):
         self.logger = get_logger('Starlink.Constellation')
         self.logger.info('Initializing constellation')
+        subscribe.magnetosphere.subscribe(self.broadcast_alert)
 
-    async def build(self):
-        self.satellite_array = self.fetch()
+    def build(self):
+        tle =  TLEData()
+        self.satellite_array = tle.fetch()
+        self.num_satellites = len(self.satellite_array)
         self.logger.info(f'Constellation assembled, {self.num_satellites} total satellites')
-
 
     def _get_vulnerable_satellites(self):
         #todo get all between sun and solar storm
+        pass
 
-        return [Satellite(None, None, None)]
-
-    def send_alert(self):
-        #todo
-        sat_array = self._get_vulnerable_satellites()
-        for sat in sat_array:
-            sat.signal_thrusters()
-        print(f'{len(sat_array)} satellites have been alerted to ready their thrusters')
+    def broadcast_alert(self, e):
+        # sat_array = self._get_vulnerable_satellites()
+        for sat in self.satellite_array:
+            if sat != None: #todo fix
+                sat.signal_thrusters()
+        self.logger.info(f'{self.num_satellites} satellite(s) have been alerted to ready their thrusters')
 
 
 
