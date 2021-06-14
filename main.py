@@ -37,17 +37,20 @@ FLUENT PYTHON
 - a oop uml diagram
 '''
 
-
-from Starlink import TLE_file, Satellite
+from Starlink import Constellation
 from NOAA_SolarWind import Magnetosphere, Plasma
+
+
+
 
 
 if __name__ == '__main__':
     #todo for file in dir, or api to go out and call it good place for a generator
     #todo run for single file
 
-    tle = TLE_file('MEME_44713_STARLINK-1007_1630208_Operational_1307758111_UNCLASSIFIED.txt')
-    satellites = tle.read_data()
-    print(tle.num_satellites)
+    constellation = Constellation()
+
+
+
 
 
