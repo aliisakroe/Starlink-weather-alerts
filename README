@@ -1,8 +1,7 @@
-'''This is a program written for an interview with SpaceX Starlink. It is an exploratory project to show
-fluency in python programming and should not be used for scientific purposes, as it has not been peer-reviewed
-by space weather nor satellite experts.
+'''This in an exploratory project (for fun!) and should not be used for scientific purposes, as it has not been
+peer-reviewed by space weather nor satellite experts.
 
-PREMISE:
+#### PREMISE:
 Starlink (LEO) satelites are threatened by solar storms which may cause interference in communications
 and increased orbital decay.
     https://www.swpc.noaa.gov/impacts/satellite-communications
@@ -10,22 +9,35 @@ and increased orbital decay.
     https://doi.org/10.1016/j.asr.2017.12.034
 
 This project will use the real-time Bz coordinate of Earth's magnetosphere to monitor solar storms.
-A negative Bz coordinate indicates a solar storm that can affect satellites in _____ regions.
+A negative Bz coordinate indicates a solar storm that can affect satellites. More research is needed for the threshold
+ of this negative value.
 
-This analysis can be extended for prediction in the future, for fuel planning before launch to adjust for
-premature solar wind induced orbital decay.
-
+#### Data
 It uses:
 - TLE data of Starlink locations
-- NOAA Space Weather solar winds
+- NOAA Space Weather solar winds endpoint
+- NOAA Space Weather magnetosphere endpoint
+- sqlite databases to store these values for storm lookups
 
-- AGI Simulation software under it's open source json library CesiumGS
-To predict the likelihood of a fireball knocking out a portion of the constellation
-(Especially as Starlink continues to scale...)
+#### Software Architecture
+This program utilizes an observer pattern to register callback functions to warn satellites to ready their thrusters.
 
+#### Usage
+This can be pulled as a docker image. There is no console output, but an alert.log file will be written showing the
+method calls and (too frequent/likely inaccurate) storms that call t
 
-Known improvements --
+#### Notes
+This project uses concurrent api calls though this is not necessary for the fast response and small
+amount of data from these endpoints. This is an exercise for the programmer because not all api endpoints will be so
+generous and consistent.
 
--- Don't duplicate data in sqlite
--- have plasma writes before magnetosphere writes
+#### Future Directions
+With more atmospheric research this analysis could be restructured for storm prediction in the future, for thruster
+fuel planning defore launch.
+
+#### Known improvements
+-- Data may be fetched mutliple times from API source, causing multiple callbacks per storm
+-- Only alert truly vulnerable satellites based on location between Earth and Sun, rather than full constellation
+-- Continue adding unit and feature tests for code coverage and quality assurance
+-- More error logging
 

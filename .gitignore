@@ -6,3 +6,4 @@ NOAA
 *.log
 venv/
 .pytest*
+TEST
