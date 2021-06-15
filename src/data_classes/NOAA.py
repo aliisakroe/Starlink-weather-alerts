@@ -1,8 +1,8 @@
 '''This uses real-time apis from NOAA...'''
 
-from utils.logging import get_logger
-from data_classes.base_classes.database import Database
-from data_classes.base_classes.api import API
+from src.data_classes.base_classes.api import API
+from src.data_classes.base_classes.database import Database
+from src.utils.logging import get_logger
 
 MAGNETOSPHERE_URL='https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json'
 PLASMA_URL='https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json'
@@ -11,10 +11,8 @@ def _get_hourly(timestamp):
     return timestamp[:-10]
 
 class Storm():
-
     def __init__(self, args):
         self.time_tag, self.bx_gsm, self.by_gsm, self.bz_gsm, self.lon_gsm, self.lat_gsm, self.bt = args
-
 
 class Observable(object):
     def __init__(self):
@@ -31,7 +29,7 @@ class Observable(object):
         for fn in self.callbacks:
             fn(e)
 
-class StormDB(Database):
+class MagnetosphereDB(Database):
 
     logger = get_logger('NOAA.StormDB')
 
@@ -52,22 +50,26 @@ class StormDB(Database):
         self.logger.info('StormDB table created')
 
     def write_many_rows(self, storm):
-        # assert storm == (str, float, float, float, float, float, float)
         sql = f'INSERT OR IGNORE INTO {self.name} (time_tag, bx_gsm, by_gsm, bz_gsm, lon_gsm, lat_gsm, bt) values(?, ?, ?, ?, ?, ?, ?);'
         with self.con as con:
             con.execute(sql, storm).fetchmany()
 
 class MagnetosphereData(API, Observable):
 
+    logger = get_logger('NOAA.Magnetosphere')
+
     def __init__(self):
         self.callbacks = []
-        self.logger = get_logger('NOAA.Magnetosphere')
-        # self.fetch()
-        self.db = StormDB(db='NOAA', table='STORMS')
+        self.db = MagnetosphereDB(db='NOAA', table='STORMS')
+        self.db.create_table()
+
+    def possible_storm(self, bz_gsm):
+        if bz_gsm != 'bz_gsm' and float(bz_gsm) < 0:
+            return True
 
     def _parse(self, data):
         count = 0
-        for i, l in enumerate(list(data.json())[1:]):
+        for i, l in enumerate(data.json()[1:]):
             time_tag = _get_hourly(l[0])
             bx_gsm = l[1]
             by_gsm = l[2]
@@ -75,7 +77,7 @@ class MagnetosphereData(API, Observable):
             lon_gsm = l[4]
             lat_gsm = l[5]
             bt = l[6]
-            if bz_gsm != 'bz_gsm' and float(bz_gsm) < 0:
+            if self.possible_storm(bz_gsm):
                 count+=1
                 self.db.write_many_rows((time_tag, bx_gsm, by_gsm, bz_gsm, lon_gsm, lat_gsm, bt))
 
@@ -110,19 +112,19 @@ class PlasmaDB(Database):
         self.logger.info('PlasmaDB table created')
 
     def write_many_rows(self, data):
-        # assert data == (str, float, float, int)
         self.logger.info('Writing Drag to database for storm lookups')
         sql = f'INSERT OR IGNORE INTO {self.name} (time_tag, density, speed, temperature) values(?, ?, ?, ?)'
         with self.con:
             self.con.executemany(sql, data)
         self.logger.info('Storm lookups written successfully')
 
-
-class Plasma(API):
+class PlasmaData(API):
 
     def __init__(self, magnetosphere):
         self.logger = get_logger('NOAA.Plasma')
-        self.db = PlasmaDB(db='NOAA', table='INTENSITY')
+        self.db = PlasmaDB(db='NOAA', table='SOLARWIND')
+        self.db.create_table()
+
         magnetosphere.subscribe(self.get_radiation_drag)
 
     def _parse(self, data):
@@ -149,7 +151,7 @@ class SpaceWeather():
     def __init__(self):
         self.logger = get_logger('NOAA.SpaceWeather')
         self.logger.info('Gathering Plasma and Magnetosphere for Space Weather')
-        self.plasma = Plasma(self.magnetosphere)
+        self.plasma = PlasmaData(self.magnetosphere)
 
     async def fetch_plasma(self):
         self.logger.info("Kicking off plasma"),

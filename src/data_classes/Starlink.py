@@ -3,17 +3,16 @@ TLE data is a telemetry format of form
 
 Satellite
 Name
-TLE #todo
+TLE
 TLE
 
 The TLE class parses each file into Satelite objects'''
 
-#todo update so log beginning of a storm and not every storm event (time series would be better for this data)
-
 import re
 from itertools import zip_longest
-from utils.logging import get_logger, log_error
-from data_classes.base_classes.api import API
+from src.data_classes.base_classes.api import API
+from src.utils.logging import get_logger
+
 
 STARLINK_URL='https://celestrak.com/NORAD/elements/starlink.txt'
 
@@ -29,7 +28,7 @@ class TLEData(API):
         '''Confirm TLE is in proper format, line 1'''
         if re.match(r'FALCON 9|CAPELLA|TYVAK', str) != None:
             return
-        name = re.match(r'STARLINK-\d+', str) #todo error check
+        name = re.match(r'STARLINK-\d+', str)
         assert name != None, str
         return name
 
@@ -56,7 +55,7 @@ class TLEData(API):
         return satellite_array
 
 
-class Satellite():  # todo refactor to the real starlink name
+class Satellite():
     name = None
     catalog_number = None
     classification = None
@@ -106,10 +105,9 @@ class Satellite():  # todo refactor to the real starlink name
         self.argment_of_perigee = m.group(4)
         self.mean_anomaly = m.group(5)
         self.mean_motion = m.group(6)
-        self.revolutions = m.group(7) #todo
+        self.revolutions = m.group(7)
 
     def signal_thrusters(self):
-        #todo to avoid orbital decay
         pass
 
 
@@ -117,7 +115,6 @@ class Constellation():
     satellite_array = []
     num_satellites = len(satellite_array)
 
-    #todo generator of number of sattelites to grab
     def __init__(self, subscribe=None):
         self.logger = get_logger('Starlink.Constellation')
         self.logger.info('Initializing constellation')

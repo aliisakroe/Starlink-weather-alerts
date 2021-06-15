@@ -6,7 +6,7 @@ class Database(abc.ABC):
     def __init__(self, db, table):
         self.name = table
         self.db = db
-        self.open_connection()
+        self._open_connection()
 
     def get_table_name(self):
         return self.name
@@ -20,7 +20,7 @@ class Database(abc.ABC):
 
     def get_num_rows(self):
         with self.con:
-            return self.con.execute(f'SELECT COUNT(*) FROM {self.get_table_name()}').fetchone()
+            return self.con.execute(f'SELECT COUNT(*) FROM {self.get_table_name()}').fetchone()[0]
 
     @abc.abstractmethod
     def create_table(self):
@@ -37,9 +37,8 @@ class Database(abc.ABC):
     def __aenter__(self):
         return self.con
 
-    def open_connection(self):
+    def _open_connection(self):
         self.con = sl.connect(self.get_db_name())
-        self.create_table()
 
     @abc.abstractmethod
     def write_many_rows(self, data):

@@ -1,16 +1,3 @@
-'''Goals are to use:
-FLUENT PYTHON
-- a decorator
-- tdd or bdd??  
-- OOP where broken into classes and each function is documented and has 1 objective 
-- a dunder method ✅
-- a generator
-- dependency injection
-- grpc
-- dockerize it
-- a oop uml diagram
-'''
-
 import asyncio
 from data_classes.Starlink import Constellation
 from data_classes.NOAA import SpaceWeather
