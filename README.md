@@ -21,7 +21,7 @@ It uses:
 
 #### Software Architecture
 This program utilizes an observer pattern to register callback functions to warn satellites to ready their thrusters.
-![alt text](https://github.com/aliisakroe/Starlink-weather-alerts/blob/main/uml.pdf?raw=true)
+See UML.pdf 
 
 #### Usage
 This can be pulled as a docker image. There is no console output, but an alert.log file will be written showing the
