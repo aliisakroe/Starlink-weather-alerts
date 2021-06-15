@@ -37,8 +37,8 @@ With more atmospheric research this analysis could be restructured for storm pre
 fuel planning defore launch.
 
 #### Known improvements
--- Data may be fetched mutliple times from API source, causing multiple callbacks per storm
--- Only alert truly vulnerable satellites based on location between Earth and Sun, rather than full constellation
--- Continue adding unit and feature tests for code coverage and quality assurance
--- More error logging
+- Data may be fetched mutliple times from API source, causing multiple callbacks per storm
+- Only alert truly vulnerable satellites based on location between Earth and Sun, rather than full constellation
+- Continue adding unit and feature tests for code coverage and quality assurance
+- More error logging
 
