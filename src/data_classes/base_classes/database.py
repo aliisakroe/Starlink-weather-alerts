@@ -1,7 +1,12 @@
+''' 2 classes: NOAA MagnetosphereDB and NOAA PlasmaDB implement Database'''
+
 import abc
 import sqlite3 as sl
 
 class Database(abc.ABC):
+    '''Abstract class for storing api data
+    must define table schema and multiple inserts
+    '''
 
     def __init__(self, db, table):
         self.name = table
@@ -24,6 +29,8 @@ class Database(abc.ABC):
 
     @abc.abstractmethod
     def create_table(self):
+        '''Must override to define table schema
+        '''
         with self.con as con:
             con.execute(f"""
                           CREATE TABLE IF NOT EXISTS {self.get_table_name()} (
@@ -42,17 +49,22 @@ class Database(abc.ABC):
 
     @abc.abstractmethod
     def write_many_rows(self, data):
+        '''Must override to define row inserts according to table schema
+        '''
         sql = f'INSERT INTO {self.get_table_name()} {(None)} values {(None)}'
         with self.con:
             self.con.executemany(sql, data)
 
     def execute(self, sql):
+        '''Runs a single sql query
+
+        :param: sql: str
+        '''
         with self.con:
             return self.con.execute(sql).fetchall()
 
     def __aexit__(self, exc_type, exc, tb):
-        if exc_type == KeyboardInterrupt:
-            with self.con:
-                self.clear_table()
-                self.con.close()
+        with self.con:
+            self.clear_table()
+            self.con.close()
 
